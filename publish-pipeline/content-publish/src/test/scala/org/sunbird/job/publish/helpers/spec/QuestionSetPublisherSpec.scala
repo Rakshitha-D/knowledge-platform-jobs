@@ -7,10 +7,10 @@ import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 import org.mockito.Mockito
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
-import org.sunbird.job.domain.`object`.DefinitionCache
+import org.sunbird.job.content.publish.helpers.QuestionSetPublisher
+import org.sunbird.job.content.task.ContentPublishConfig
+import org.sunbird.job.domain.`object`.{DefinitionCache, ObjectDefinition}
 import org.sunbird.job.publish.core.{DefinitionConfig, ExtDataConfig, ObjectData, ObjectExtData}
-import org.sunbird.job.questionset.publish.helpers.QuestionSetPublisher
-import org.sunbird.job.questionset.task.QuestionSetPublishConfig
 import org.sunbird.job.util.{CassandraUtil, CloudStorageUtil, Neo4JUtil}
 
 class QuestionSetPublisherSpec extends FlatSpec with BeforeAndAfterAll with Matchers with MockitoSugar {
@@ -18,9 +18,11 @@ class QuestionSetPublisherSpec extends FlatSpec with BeforeAndAfterAll with Matc
   implicit val mockNeo4JUtil: Neo4JUtil = mock[Neo4JUtil](Mockito.withSettings().serializable())
   implicit var cassandraUtil: CassandraUtil = _
   val config: Config = ConfigFactory.load("test.conf").withFallback(ConfigFactory.systemEnvironment())
-  implicit val jobConfig: QuestionSetPublishConfig = new QuestionSetPublishConfig(config)
+  implicit val jobConfig: ContentPublishConfig = new ContentPublishConfig(config)
   implicit val cloudStorageUtil = new CloudStorageUtil(jobConfig)
-  implicit val readerConfig: ExtDataConfig = ExtDataConfig(jobConfig.questionSetKeyspaceName, jobConfig.questionSetTableName, List("identifier"), Map("hierarchy"->"string","instructions"->"string"))
+  var definitionCache = new DefinitionCache()
+  implicit val definition: ObjectDefinition = definitionCache.getDefinition("QuestionSet", jobConfig.schemaSupportVersionMap.getOrElse("questionset", "1.0").asInstanceOf[String], jobConfig.definitionBasePath)
+  implicit val readerConfig: ExtDataConfig = ExtDataConfig(jobConfig.questionSetKeyspaceName, jobConfig.questionSetTableName, definition.getExternalPrimaryKey, definition.getExternalProps)
   val questionReaderConfig: ExtDataConfig = ExtDataConfig(jobConfig.questionKeyspaceName, jobConfig.questionTableName)
   implicit val defCache = new DefinitionCache()
   implicit val defConfig = DefinitionConfig(jobConfig.schemaSupportVersionMap, jobConfig.definitionBasePath)
@@ -37,6 +39,9 @@ class QuestionSetPublisherSpec extends FlatSpec with BeforeAndAfterAll with Matc
   override protected def afterAll(): Unit = {
     super.afterAll()
     try {
+      if (cassandraUtil != null) {
+        cassandraUtil.close()
+      }
       EmbeddedCassandraServerHelper.cleanEmbeddedCassandra()
       delay(10000)
     } catch {

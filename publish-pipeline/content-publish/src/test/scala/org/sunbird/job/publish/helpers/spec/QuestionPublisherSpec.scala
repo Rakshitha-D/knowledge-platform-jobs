@@ -9,12 +9,12 @@ import org.cassandraunit.utils.EmbeddedCassandraServerHelper
 import org.mockito.Mockito
 import org.scalatest.{BeforeAndAfterAll, FlatSpec, Matchers}
 import org.scalatestplus.mockito.MockitoSugar
+import org.sunbird.job.content.publish.helpers.QuestionPublisher
+import org.sunbird.job.content.task.ContentPublishConfig
 import org.sunbird.job.domain.`object`.DefinitionCache
 import org.sunbird.job.publish.config.PublishConfig
 import org.sunbird.job.publish.core.{DefinitionConfig, ExtDataConfig, ObjectData, ObjectExtData}
 import org.sunbird.job.publish.helpers.EcarPackageType
-import org.sunbird.job.questionset.publish.helpers.QuestionPublisher
-import org.sunbird.job.questionset.task.QuestionSetPublishConfig
 import org.sunbird.job.util.{CassandraUtil, CloudStorageUtil, HttpUtil, Neo4JUtil}
 
 import java.util
@@ -24,7 +24,7 @@ class QuestionPublisherSpec extends FlatSpec with BeforeAndAfterAll with Matcher
   implicit val mockNeo4JUtil: Neo4JUtil = mock[Neo4JUtil](Mockito.withSettings().serializable())
   implicit var cassandraUtil: CassandraUtil = _
   val config: Config = ConfigFactory.load("test.conf").withFallback(ConfigFactory.systemEnvironment())
-  val jobConfig: QuestionSetPublishConfig = new QuestionSetPublishConfig(config)
+  val jobConfig: ContentPublishConfig = new ContentPublishConfig(config)
   implicit val readerConfig: ExtDataConfig = ExtDataConfig(jobConfig.questionKeyspaceName, jobConfig.questionTableName)
   implicit val cloudStorageUtil = new CloudStorageUtil(jobConfig)
   implicit val ec = ExecutionContexts.global
@@ -45,6 +45,9 @@ class QuestionPublisherSpec extends FlatSpec with BeforeAndAfterAll with Matcher
   override protected def afterAll(): Unit = {
     super.afterAll()
     try {
+      if (cassandraUtil != null) {
+        cassandraUtil.close()
+      }
       EmbeddedCassandraServerHelper.cleanEmbeddedCassandra()
       delay(10000)
     } catch {
